@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0077b6">
+<title>Cartes Métro</title>
+<style>
+  :root[data-theme="light"]{
+    --bg1:#eef4ff; --bg2:#e6f7f3;
+    --card-bg:#ffffff; --text:#1a1a2e; --text2:#6b7280;
+    --accent:#0077b6; --accent2:#00b4a6;
+    --border:#e5e7eb; --shadow:rgba(0,0,0,0.08);
+    --panel-bg:#ffffff; --minus-grad1:#0077b6; --minus-grad2:#0096c7;
+    --danger:#ef4444;
+  }
+  :root[data-theme="dark"]{
+    --bg1:#0f172a; --bg2:#1e293b;
+    --card-bg:#1e293b; --text:#f1f5f9; --text2:#94a3b8;
+    --accent:#38bdf8; --accent2:#2dd4bf;
+    --border:#334155; --shadow:rgba(0,0,0,0.4);
+    --panel-bg:#1e293b; --minus-grad1:#0369a1; --minus-grad2:#0284c7;
+    --danger:#f87171;
+  }
+  *{box-sizing:border-box;}
+  
+  html, body {
+    margin:0; 
+    height: 100dvh;
+    height: -webkit-fill-available;
+    overflow:hidden;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    background:linear-gradient(135deg,var(--bg1),var(--bg2));
+    color:var(--text);
+    -webkit-tap-highlight-color:transparent;
+    transition:background .3s;
+  }
+  
+  #app{ 
+    height: 100dvh;
+    display:flex; 
+    flex-direction:column; 
+  }
+  
+  .app-header{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:calc(env(safe-area-inset-top, 20px) + 14px) 20px 14px 20px;
+    flex-shrink:0;
+  }
+  .app-header h1{ font-size:1.3rem; margin:0; font-weight:700; }
+  
+  .icon-btn{
+    background:var(--card-bg); border:1px solid var(--border); border-radius:12px;
+    width:42px; height:42px; font-size:1.2rem; color:var(--text);
+    display:flex; align-items:center; justify-content:center;
+  }
+  
+  .grid{
+    flex:1; 
+    display:grid; 
+    grid-template-columns:1fr 1fr;
+    gap:14px; 
+    padding:0 16px calc(env(safe-area-inset-bottom, 16px) + 16px) 16px;
+    overflow-y:auto; 
+    overflow-x:hidden;
+    align-content:start;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .card{
+    background:var(--card-bg); 
+    border-radius:22px; 
+    padding:16px;
+    box-shadow:0 8px 20px var(--shadow);
+    display:flex; 
+    flex-direction:column; 
+    justify-content:space-between;
+    min-height:150px;
+    user-select:none;
+  }
+  
+  .card-header{ display:flex; justify-content:space-between; align-items:center; }
+  .card-name{ font-weight:700; font-size:1rem; }
+  .card-rides{ text-align:center; }
+  .rides-count{ font-size:2.4rem; font-weight:800; color:var(--accent); display:block; line-height:1; }
+  .rides-label{ font-size:.75rem; color:var(--text2); }
+  .card-actions{ display:flex; gap:6px; margin-top:8px; }
+  
+  .card-actions button{
+    border:none; border-radius:12px; font-weight:700; cursor:pointer;
+    padding:10px 0; transition:transform .1s;
+  }
+  .card-actions button:active{ transform:scale(0.93); }
+  
+  .btn-minus{
+    flex:1.5; font-size:1.4rem; color:#fff;
+    background:linear-gradient(135deg,var(--minus-grad1),var(--minus-grad2));
+  }
+  .btn-reload{
+    flex:1; font-size:1.1rem; color:var(--accent2);
+    background:color-mix(in srgb, var(--accent2) 15%, transparent);
+    border:2px solid var(--accent2);
+  }
+  .btn-plus{
+    flex:0.8; font-size:1rem; color:var(--text2);
+    background:transparent; border:1px solid var(--border);
+  }
+  
+  .overlay{
+    position:fixed; inset:0; background:rgba(0,0,0,0.45);
+    display:flex; opacity:0; pointer-events:none; transition:opacity .25s; z-index:50;
+  }
+  .overlay.active{ opacity:1; pointer-events:auto; }
+  
+  .panel{
+    margin-left:auto; width:80%; max-width:320px; height:100%;
+    background:var(--panel-bg); 
+    padding:calc(env(safe-area-inset-top, 20px) + 20px) 18px 28px 18px;
+    transform:translateX(100%); 
+    transition:transform .25s; 
+    display:flex; 
+    flex-direction:column; 
+    gap:20px;
+    overflow-y:auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .overlay.active .panel{ transform:translateX(0); }
+  
+  .panel-header{ 
+    display:flex; 
+    justify-content:space-between; 
+    align-items:center;
+    margin-bottom:10px;
+  }
+  .panel-header h2{ margin:0; font-size:1.1rem; }
+  
+  .menu-item{
+    text-align:left; padding:14px 16px; border-radius:12px; border:1px solid var(--border);
+    background:transparent; color:var(--text); font-size:.95rem; cursor:pointer;
+  }
+  .menu-item:disabled{ opacity:.4; }
+  
+  .switch-row{ 
+    display:flex; 
+    justify-content:space-between; 
+    align-items:center; 
+    font-size:.95rem;
+    padding:16px;
+    border-radius:12px;
+    border:1px solid var(--border);
+    background:transparent;
+  }
+  
+  .modal{
+    margin:auto; width:88%; max-width:360px; max-height:80vh; overflow-y:auto;
+    background:var(--card-bg); border-radius:20px; padding:22px;
+    display:flex; flex-direction:column; gap:14px;
+  }
+  .modal h2{ margin:0; font-size:1.15rem; }
+  .modal p{ margin:0; color:var(--text2); font-size:.9rem; }
+  .modal label{ font-size:.85rem; color:var(--text2); display:flex; flex-direction:column; gap:6px; }
+  
+  .modal input[type=text], .modal input[type=number]{
+    padding:10px 12px; border-radius:10px; border:1px solid var(--border);
+    background:transparent; color:var(--text); font-size:1rem;
+  }
+  .checkbox-label{ flex-direction:row !important; align-items:center; gap:8px !important; }
+  .chip-row{ display:flex; gap:8px; }
+  .chip{
+    flex:1; padding:8px 0; border-radius:10px; border:1px solid var(--border);
+    background:transparent; color:var(--text); font-weight:600;
+  }
+  .modal-actions{ display:flex; gap:10px; justify-content:flex-end; margin-top:6px; }
+  .btn-primary{ background:var(--accent); color:#fff; border:none; padding:10px 18px; border-radius:10px; font-weight:700; }
+  .btn-secondary{ background:transparent; border:1px solid var(--border); color:var(--text); padding:10px 18px; border-radius:10px; }
+  .btn-danger{ background:transparent; border:1px solid var(--danger); color:var(--danger); padding:10px 18px; border-radius:10px; font-weight:600; }
+  .close-modal{ background:none; border:none; font-size:1.1rem; color:var(--text2); cursor:pointer; }
+  
+  .manage-row{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:10px 0; border-bottom:1px solid var(--border); font-size:.9rem;
+  }
+  .manage-actions button{ background:none; border:none; font-size:1rem; margin-left:8px; cursor:pointer; }
+
+  @media (orientation: landscape) {
+    .grid {
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      padding-bottom: calc(env(safe-area-inset-bottom, 8px) + 8px);
+    }
+    .card {
+      min-height: 125px;
+      padding: 10px 14px;
+    }
+    .rides-count {
+      font-size: 1.8rem;
+    }
+    .app-header {
+      padding-top: calc(env(safe-area-inset-top, 10px) + 8px);
+      padding-bottom: 8px;
+    }
+  }
+</style>
+</head>
+<body data-theme="light">
+<div id="app">
+  <div class="app-header">
+    <h1>🚇 Cartes Métro</h1>
+    <button id="menuBtn" class="icon-btn">☰</button>
+  </div>
+  <div class="grid" id="grid"></div>
+</div>
+
+<div class="overlay" id="menuOverlay">
+  <div class="panel">
+    <div class="panel-header"><h2>Menu</h2><button class="close-modal" id="closeMenuBtn">✕</button></div>
+    <div class="switch-row">
+      <span>Mode sombre</span>
+      <input type="checkbox" id="themeToggle">
+    </div>
+    <button class="menu-item" id="addCardBtn">＋ Ajouter une carte</button>
+    <button class="menu-item" id="manageCardsBtn">✎ Gérer les cartes</button>
+    <button class="menu-item" id="resetCardsBtn">↺ Réinitialiser (4 cartes par défaut)</button>
+  </div>
+</div>
+
+<div class="overlay" id="manageModal">
+  <div class="modal">
+    <div class="panel-header"><h2>Gérer les cartes</h2><button class="close-modal">✕</button></div>
+    <div id="manageList"></div>
+  </div>
+</div>
+
+<div class="overlay" id="editModal">
+  <div class="modal">
+    <h2>Modifier la carte</h2>
+    <label>Nom<input id="editNameInput" type="text" maxlength="18"></label>
+    <label>Tickets restants<input id="editRidesInput" type="number" min="0"></label>
+    <div class="modal-actions">
+      <button class="btn-danger" id="deleteCardBtn">Supprimer</button>
+      <button class="btn-primary" id="saveCardBtn">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="reloadModal">
+  <div class="modal">
+    <h2 id="reloadTitle">Recharger</h2>
+    <p id="reloadCurrent"></p>
+    <div class="chip-row">
+      <button class="chip" data-value="10">+10</button>
+      <button class="chip" data-value="20">+20</button>
+      <button class="chip" data-value="30">+30</button>
+    </div>
+    <label>Quantité<input id="reloadInput" type="number" min="1" value="10"></label>
+    <label class="checkbox-label"><input type="checkbox" id="replaceToggle"> Définir comme solde exact</label>
+    <div class="modal-actions">
+      <button class="btn-secondary" id="cancelReloadBtn">Annuler</button>
+      <button class="btn-primary" id="confirmReloadBtn">Valider</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY='metroCardsAppData';
+const uid=()=>'c'+Date.now()+Math.random().toString(36).slice(2,8);
+const DEFAULT_CARDS=()=>[
+  {id:uid(),name:'Caro',rides:10},
+  {id:uid(),name:'Sieb',rides:10},
+  {id:uid(),name:'Chloé',rides:10},
+  {id:uid(),name:'Elise',rides:10},
+];
+
+function loadState(){
+  try{
+    const raw=localStorage.getItem(STORAGE_KEY);
+    if(raw){ const p=JSON.parse(raw); if(p && Array.isArray(p.cards)) return p; }
+  }catch(e){}
+  return {theme:'light', cards:DEFAULT_CARDS()};
+}
+let state=loadState();
+function saveState(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+
+const grid=document.getElementById('grid');
+const menuBtn=document.getElementById('menuBtn');
+const menuOverlay=document.getElementById('menuOverlay');
+const closeMenuBtn=document.getElementById('closeMenuBtn');
+const themeToggle=document.getElementById('themeToggle');
+const addCardBtn=document.getElementById('addCardBtn');
+const manageCardsBtn=document.getElementById('manageCardsBtn');
+const resetCardsBtn=document.getElementById('resetCardsBtn');
+const manageModal=document.getElementById('manageModal');
+const manageList=document.getElementById('manageList');
+const editModal=document.getElementById('editModal');
+const editNameInput=document.getElementById('editNameInput');
+const editRidesInput=document.getElementById('editRidesInput');
+const saveCardBtn=document.getElementById('saveCardBtn');
+const deleteCardBtn=document.getElementById('deleteCardBtn');
+const reloadModal=document.getElementById('reloadModal');
+const reloadTitle=document.getElementById('reloadTitle');
+const reloadCurrent=document.getElementById('reloadCurrent');
+const reloadInput=document.getElementById('reloadInput');
+const replaceToggle=document.getElementById('replaceToggle');
+const confirmReloadBtn=document.getElementById('confirmReloadBtn');
+const cancelReloadBtn=document.getElementById('cancelReloadBtn');
+
+let activeCardId=null;
+
+function escapeHtml(s){return s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function showOverlay(ov){ov.classList.add('active');}
+function hideOverlay(ov){ov.classList.remove('active');}
+document.querySelectorAll('.overlay').forEach(ov=>{
+  ov.addEventListener('click', e=>{ if(e.target===ov) hideOverlay(ov); });
+});
+document.querySelectorAll('.close-modal').forEach(btn=>{
+  btn.addEventListener('click', e=> hideOverlay(e.target.closest('.overlay')));
+});
+
+function applyTheme(){
+  document.body.setAttribute('data-theme', state.theme);
+  document.documentElement.setAttribute('data-theme', state.theme);
+  themeToggle.checked = state.theme==='dark';
+}
+
+function render(){
+  grid.innerHTML='';
+  state.cards.forEach(c=> grid.appendChild(buildCardEl(c)));
+}
+
+function buildCardEl(card){
+  const el=document.createElement('div');
+  el.className='card'; el.dataset.id=card.id;
+  el.innerHTML=`
+    <div class="card-header"><span class="card-name">${escapeHtml(card.name)}</span></div>
+    <div class="card-rides">
+      <span class="rides-count">${card.rides}</span>
+      <span class="rides-label">${card.rides===1?'ticket restant':'tickets restants'}</span>
+    </div>
+    <div class="card-actions">
+      <button data-action="minus" class="btn-minus">−</button>
+      <button data-action="reload" class="btn-reload">⟳</button>
+      <button data-action="plus" class="btn-plus">+</button>
+    </div>`;
+  el.querySelector('[data-action="minus"]').addEventListener('click', e=>{e.stopPropagation(); changeRides(card.id,-1);});
+  el.querySelector('[data-action="plus"]').addEventListener('click', e=>{e.stopPropagation(); changeRides(card.id,1);});
+  el.querySelector('[data-action="reload"]').addEventListener('click', e=>{e.stopPropagation(); openReloadModal(card.id);});
+
+  let timer=null;
+  const start=(e)=>{ if(e.target.closest('button')) return; timer=setTimeout(()=>openEditModal(card.id),550); };
+  const cancel=()=>{ if(timer){clearTimeout(timer); timer=null;} };
+  el.addEventListener('touchstart', start, {passive:true});
+  el.addEventListener('touchend', cancel);
+  el.addEventListener('touchmove', cancel);
+  el.addEventListener('mousedown', start);
+  el.addEventListener('mouseup', cancel);
+  el.addEventListener('mouseleave', cancel);
+  return el;
+}
+
+function changeRides(id, delta){
+  const card=state.cards.find(c=>c.id===id); if(!card) return;
+  card.rides=Math.max(0, Math.min(999, card.rides+delta));
+  saveState(); render();
+}
+
+function openReloadModal(id){
+  activeCardId=id;
+  const card=state.cards.find(c=>c.id===id);
+  reloadTitle.textContent=`Recharger — ${card.name}`;
+  reloadCurrent.textContent=`Solde actuel : ${card.rides} ${card.rides===1?'ticket':'tickets'}`;
+  reloadInput.value=10; replaceToggle.checked=false;
+  showOverlay(reloadModal);
+}
+document.querySelectorAll('.chip').forEach(chip=>{
+  chip.addEventListener('click', ()=> reloadInput.value=chip.dataset.value);
+});
+confirmReloadBtn.addEventListener('click', ()=>{
+  const card=state.cards.find(c=>c.id===activeCardId); if(!card) return;
+  const val=parseInt(reloadInput.value,10)||0;
+  card.rides = replaceToggle.checked ? Math.max(0,val) : Math.max(0, card.rides+val);
+  saveState(); render(); hideOverlay(reloadModal);
+});
+cancelReloadBtn.addEventListener('click', ()=> hideOverlay(reloadModal));
+
+function openEditModal(id){
+  activeCardId=id;
+  const card=state.cards.find(c=>c.id===id); if(!card) return;
+  editNameInput.value=card.name; editRidesInput.value=card.rides;
+  showOverlay(editModal);
+}
+saveCardBtn.addEventListener('click', ()=>{
+  const card=state.cards.find(c=>c.id===activeCardId); if(!card) return;
+  const name=editNameInput.value.trim(); if(name) card.name=name;
+  const rides=parseInt(editRidesInput.value,10);
+  if(!isNaN(rides)) card.rides=Math.max(0,rides);
+  saveState(); render(); hideOverlay(editModal);
+});
+deleteCardBtn.addEventListener('click', ()=>{
+  if(confirm('Supprimer cette carte ?')){
+    state.cards=state.cards.filter(c=>c.id!==activeCardId);
+    saveState(); render(); hideOverlay(editModal);
+  }
+});
+
+function addCard(){
+  const card={id:uid(), name:'Nouvelle carte', rides:0};
+  state.cards.push(card); saveState(); render();
+  openEditModal(card.id);
+}
+addCardBtn.addEventListener('click', ()=>{ hideOverlay(menuOverlay); addCard(); });
+
+manageCardsBtn.addEventListener('click', ()=>{ hideOverlay(menuOverlay); renderManageList(); showOverlay(manageModal); });
+function renderManageList(){
+  manageList.innerHTML='';
+  if(state.cards.length===0){ manageList.innerHTML='<p>Aucune carte. Ajoutez-en une !</p>'; return; }
+  state.cards.forEach(card=>{
+    const row=document.createElement('div');
+    row.className='manage-row';
+    row.innerHTML=`<span>${escapeHtml(card.name)} — ${card.rides} tickets</span>
+      <span class="manage-actions">
+        <button data-action="edit" data-id="${card.id}">✎</button>
+        <button data-action="delete" data-id="${card.id}">🗑</button>
+      </span>`;
+    manageList.appendChild(row);
+  });
+}
+manageList.addEventListener('click', e=>{
+  const btn=e.target.closest('button'); if(!btn) return;
+  const id=btn.dataset.id;
+  if(btn.dataset.action==='edit'){ hideOverlay(manageModal); openEditModal(id); }
+  if(btn.dataset.action==='delete'){
+    if(confirm('Supprimer cette carte ?')){
+      state.cards=state.cards.filter(c=>c.id!==id);
+      saveState(); render(); renderManageList();
+    }
+  }
+});
+
+resetCardsBtn.addEventListener('click', ()=>{
+  hideOverlay(menuOverlay);
+  if(confirm('Réinitialiser aux 4 cartes par défaut ? Action irréversible.')){
+    state.cards=DEFAULT_CARDS(); saveState(); render();
+  }
+});
+
+themeToggle.addEventListener('change', ()=>{
+  state.theme = themeToggle.checked ? 'dark':'light';
+  saveState(); applyTheme();
+});
+
+menuBtn.addEventListener('click', ()=> showOverlay(menuOverlay));
+closeMenuBtn.addEventListener('click', ()=> hideOverlay(menuOverlay));
+
+applyTheme();
+render();
+</script>
+</body>
+</html>

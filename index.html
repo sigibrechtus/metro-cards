@@ -247,7 +247,7 @@ const authStorage={
  removeItem(key){localStorage.removeItem(key);memoryAuthSession=null;}
 };
 const supabaseClient=window.supabase?window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{auth:{storage:authStorage,persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}}):null;
-let cloudUser=null,cloudReady=false,saveTimer=null,isApplyingCloud=false;
+let cloudUser=null,cloudReady=false,saveTimer=null,isApplyingCloud=false,cloudRevision=0,cloudBaselineFingerprint='',saveInFlight=false,saveAgain=false,cloudPollTimer=null;
 const uid=()=>'c'+Date.now()+Math.random().toString(36).slice(2,8);
 const CARD_COLORS=['#0077b6','#00b4a6','#f77f00','#7209b7','#2a9d8f','#e63946','#ffb703','#457b9d'];
 const LOW_THRESHOLD=3;
@@ -311,26 +311,123 @@ function updateAccountUi(){
 function showAuth(){authError.textContent='';authForm.reset();rememberLogin.checked=localStorage.getItem('metroRememberLogin')==='true';authSubmitBtn.textContent='Connexion';authSubmitBtn.dataset.mode='signin';createAccountBtn.hidden=false;authOverlay.classList.add('active');}
 function closeAuth(){authOverlay.classList.remove('active');}
 function setAuthMode(create){authSubmitBtn.dataset.mode=create?'signup':'signin';authSubmitBtn.textContent=create?'Créer le compte':'Connexion';createAccountBtn.hidden=create;authError.textContent='';}
-function scheduleCloudSave(){clearTimeout(saveTimer);setSyncStatus('Modifications en attente de synchronisation…');saveTimer=setTimeout(saveCardsToCloud,700);}
+function cardFingerprint(cards){
+ return JSON.stringify(cards.map((c,position)=>({id:c.id,name:c.name,rides:c.rides,color:c.color,presets:c.presets,log:c.log,position})));
+}
+async function readCloudSnapshot(userId){
+ const [revisionResult,cardsResult]=await Promise.all([
+  supabaseClient.from('metro_card_sync_state').select('revision').eq('user_id',userId).maybeSingle(),
+  supabaseClient.from('metro_cards').select('id,name,rides,color,presets,log,position').eq('user_id',userId).order('position').order('id')
+ ]);
+ if(revisionResult.error)throw revisionResult.error;
+ if(cardsResult.error)throw cardsResult.error;
+ return {revision:Number(revisionResult.data?.revision||0),rows:cardsResult.data||[]};
+}
+function cloudRowsToCards(rows){
+ return rows.map((r,i)=>ensureCardDefaults({id:r.id,name:r.name,rides:r.rides,color:r.color,presets:r.presets,log:r.log},i));
+}
+function applyCloudSnapshot(snapshot,message){
+ const cards=cloudRowsToCards(snapshot.rows);
+ cloudRevision=snapshot.revision;
+ cloudBaselineFingerprint=cardFingerprint(cards);
+ isApplyingCloud=true;
+ state.cards=migrateLegacyDefaults(cards);
+ if(!state.cards.length)state.cards=DEFAULT_CARDS();
+ localStorage.setItem(STORAGE_KEY,JSON.stringify(state));
+ render();
+ isApplyingCloud=false;
+ setSyncStatus(message||'Synchronisé sur tous les appareils');
+}
+function scheduleCloudSave(){
+ clearTimeout(saveTimer);
+ setSyncStatus('Vérification des données en ligne…');
+ saveTimer=setTimeout(saveCardsToCloud,700);
+}
 async function saveCardsToCloud(){
  if(!supabaseClient||!cloudUser||!cloudReady)return;
  if(!navigator.onLine){setSyncStatus('Hors ligne · synchronisation à la reconnexion');return;}
- const rows=state.cards.map((c,position)=>({id:c.id,user_id:cloudUser.id,name:c.name,rides:c.rides,color:c.color,presets:c.presets,log:c.log,position}));
- const {data:existing,error:readError}=await supabaseClient.from('metro_cards').select('id').eq('user_id',cloudUser.id);
- if(readError){setSyncStatus('Échec de synchronisation · données conservées sur cet appareil');return;}
- const keep=new Set(state.cards.map(c=>c.id)),removed=(existing||[]).map(r=>r.id).filter(id=>!keep.has(id));
- if(removed.length){const {error}=await supabaseClient.from('metro_cards').delete().in('id',removed);if(error){setSyncStatus('Échec de synchronisation de la suppression');return;}}
- if(rows.length){const {error}=await supabaseClient.from('metro_cards').upsert(rows,{onConflict:'id'});if(error){setSyncStatus('Échec de synchronisation · données conservées sur cet appareil');return;}}
- setSyncStatus('Synchronisé');
+ if(saveInFlight){saveAgain=true;return;}
+ saveInFlight=true;
+ const user=cloudUser;
+ const localSnapshot=JSON.parse(JSON.stringify(state.cards));
+ const localFingerprint=cardFingerprint(localSnapshot);
+ try{
+  if(localFingerprint===cloudBaselineFingerprint){setSyncStatus('Synchronisé sur tous les appareils');return;}
+  setSyncStatus('Vérification des données en ligne…');
+  const current=await readCloudSnapshot(user.id);
+  if(cloudUser?.id!==user.id)return;
+  if(current.revision!==cloudRevision){
+   applyCloudSnapshot(current,'Une version plus récente était en ligne : elle a été conservée et rechargée.');
+   return;
+  }
+  const payload=localSnapshot.map((c,position)=>({id:c.id,name:c.name,rides:c.rides,color:c.color,presets:c.presets,log:c.log,position}));
+  const {data,error}=await supabaseClient.rpc('replace_metro_cards_if_revision',{p_expected_revision:cloudRevision,p_cards:payload});
+  if(error)throw error;
+  if(cloudUser?.id!==user.id)return;
+  if(data!==true){
+   const latest=await readCloudSnapshot(user.id);
+   if(cloudUser?.id===user.id)applyCloudSnapshot(latest,'Un autre appareil a enregistré en premier. La version en ligne prévaut et a été rechargée.');
+   return;
+  }
+  cloudRevision=current.revision+1;
+  cloudBaselineFingerprint=localFingerprint;
+  if(cardFingerprint(state.cards)!==localFingerprint){
+   setSyncStatus('Une modification locale attend sa synchronisation…');
+   saveAgain=true;
+  }else setSyncStatus('Synchronisé sur tous les appareils');
+ }catch(error){
+  console.error('Metro Cards sync error',error);
+  setSyncStatus('Échec de synchronisation · données locales conservées');
+ }finally{
+  saveInFlight=false;
+  if(saveAgain&&cloudUser?.id===user.id){saveAgain=false;scheduleCloudSave();}
+ }
 }
 async function loadCardsFromCloud(user){
- cloudUser=user;cloudReady=false;updateAccountUi();if(!supabaseClient||!user)return;setSyncStatus('Chargement des cartes…');
- const {data,error}=await supabaseClient.from('metro_cards').select('id,name,rides,color,presets,log,position').eq('user_id',user.id).order('position');
- if(error){setSyncStatus('Impossible de charger les cartes');return;}
- let migratedLegacy=false;
- if(data&&data.length){isApplyingCloud=true;const cloudCards=data.map((r,i)=>ensureCardDefaults({id:r.id,name:r.name,rides:r.rides,color:r.color,presets:r.presets,log:r.log},i));state.cards=migrateLegacyDefaults(cloudCards);migratedLegacy=state.cards!==cloudCards;localStorage.setItem(STORAGE_KEY,JSON.stringify(state));render();isApplyingCloud=false;}
- cloudReady=true;
- if(migratedLegacy)await saveCardsToCloud();else if(!data.length&&state.cards.length)await saveCardsToCloud();else setSyncStatus('Synchronisé');
+ cloudUser=user;cloudReady=false;updateAccountUi();
+ if(!supabaseClient||!user)return;
+ setSyncStatus('Chargement des données en ligne…');
+ try{
+  const snapshot=await readCloudSnapshot(user.id);
+  if(cloudUser?.id!==user.id)return;
+  cloudRevision=snapshot.revision;
+  const cloudCards=cloudRowsToCards(snapshot.rows);
+  cloudBaselineFingerprint=cardFingerprint(cloudCards);
+  if(snapshot.rows.length){
+   isApplyingCloud=true;
+   state.cards=migrateLegacyDefaults(cloudCards);
+   localStorage.setItem(STORAGE_KEY,JSON.stringify(state));
+   render();
+   isApplyingCloud=false;
+  }
+  if(!state.cards.length)state.cards=DEFAULT_CARDS();
+  cloudReady=true;
+  startCloudPolling();
+  if(cardFingerprint(state.cards)!==cloudBaselineFingerprint)await saveCardsToCloud();
+  else setSyncStatus('Synchronisé sur tous les appareils');
+ }catch(error){
+  console.error('Metro Cards load error',error);
+  cloudReady=false;
+  setSyncStatus('Impossible de charger les données en ligne');
+ }
+}
+async function checkForRemoteChanges(){
+ if(!supabaseClient||!cloudUser||!cloudReady||!navigator.onLine||document.hidden)return;
+ const userId=cloudUser.id;
+ try{
+  const {data,error}=await supabaseClient.from('metro_card_sync_state').select('revision').eq('user_id',userId).maybeSingle();
+  if(error)throw error;
+  const revision=Number(data?.revision||0);
+  if(cloudUser?.id===userId&&revision>cloudRevision){
+   const latest=await readCloudSnapshot(userId);
+   if(cloudUser?.id===userId&&latest.revision>cloudRevision)
+    applyCloudSnapshot(latest,'Mise à jour reçue d’un autre appareil.');
+  }
+ }catch(error){console.error('Metro Cards remote check error',error);}
+}
+function startCloudPolling(){
+ clearInterval(cloudPollTimer);
+ cloudPollTimer=setInterval(checkForRemoteChanges,8000);
 }
 async function performAuth(mode){
  if(!supabaseClient){authError.textContent='Supabase n’est pas configuré. Voir README.md.';return;}
@@ -357,7 +454,7 @@ authForm.addEventListener('submit',e=>{e.preventDefault();performAuth(authSubmit
 async function initializeCloud(){
  updateAccountUi();if(!supabaseClient)return;
  const {data:{session}}=await supabaseClient.auth.getSession();if(session)await loadCardsFromCloud(session.user);
- supabaseClient.auth.onAuthStateChange((event,session)=>{if(event==='SIGNED_OUT'){cloudUser=null;cloudReady=false;updateAccountUi();}else if(session&&!cloudUser)queueMicrotask(()=>loadCardsFromCloud(session.user));});
+ supabaseClient.auth.onAuthStateChange((event,session)=>{if(event==='SIGNED_OUT'){clearInterval(cloudPollTimer);cloudUser=null;cloudReady=false;cloudRevision=0;cloudBaselineFingerprint='';updateAccountUi();}else if(session&&cloudUser?.id!==session.user.id)queueMicrotask(()=>loadCardsFromCloud(session.user));});
 }
 
 const grid=document.getElementById('grid');
@@ -712,7 +809,8 @@ applyTheme();
 render();
 initializeCloud();
 window.addEventListener('offline',()=>setSyncStatus('Hors ligne · modifications non synchronisées'));
-window.addEventListener('online',()=>{if(cloudUser&&cloudReady)saveCardsToCloud();else setSyncStatus('Local uniquement · non synchronisé');});
+window.addEventListener('online',()=>{if(cloudUser&&cloudReady){checkForRemoteChanges().then(()=>saveCardsToCloud());}else setSyncStatus('Local uniquement · non synchronisé');});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkForRemoteChanges();});
 </script>
 </body>
 </html>

@@ -1,6 +1,6 @@
 # Cartes Métro Paris
 
-A lightweight, mobile-friendly Paris transit card tracker. Card data is stored locally by default and can be synchronized to a separate Supabase project with individual email/password accounts.
+A lightweight, mobile-friendly Paris transit card tracker. New users start with one empty “My name” card and an always-visible + tile for adding more. Card data is stored locally until the user signs in to synchronize it with the dedicated Supabase project.
 
 ## Supabase setup
 
@@ -15,7 +15,7 @@ The database uses row-level security. Each account can read and modify only rows
 
 Open **Menu → Connexion / compte**. Create an account or sign in. The “Rester connecté” option stores the session on the device for automatic sign-in next time. If unchecked, the session is kept only in memory and ends when the page/app closes.
 
-The first sign-in loads cloud cards. If the account has no cloud cards, existing local cards are uploaded once. Further card changes are saved locally immediately and synchronized to Supabase after a short debounce. Export/import remains available as a backup.
+The first sign-in loads cloud cards. If the account has no cloud cards, existing local cards are uploaded once. Further card changes are saved locally immediately and synchronized to Supabase after a short debounce. The app shows a visible local-only/offline status when changes are not syncing. Closing a normal browser window alone usually does not erase local data; clearing site data, private browsing, or switching browser/device can lose it. Export/import remains available as a backup. Statistics show daily usage for the last seven days plus seven-day and 30-day totals.
 
 ## GitHub Pages deployment
 

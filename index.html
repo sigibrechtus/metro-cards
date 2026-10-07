@@ -127,8 +127,30 @@
   .close-modal{ background:none; border:none; font-size:1.1rem; color:var(--text2); cursor:pointer; }
   .manage-row{ display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--border); font-size:.9rem; }
   .manage-actions button{ background:none; border:none; font-size:1rem; margin-left:8px; cursor:pointer; }
-  .stats-row{ display:flex; justify-content:space-between; padding:10px 0; border-bottom:1px solid var(--border); font-size:.9rem; }
-  .stats-row span.name{ font-weight:700; }
+  .stats-list{display:flex;flex-direction:column;gap:12px}
+  .stats-card{border:1px solid var(--border);border-radius:16px;padding:14px;background:color-mix(in srgb,var(--accent) 4%,var(--card-bg))}
+  .stats-card-header{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:12px}
+  .stats-card-header .name{font-weight:750;font-size:1rem}
+  .stats-totals{display:flex;gap:10px}
+  .stats-total{display:flex;flex-direction:column;align-items:flex-end}
+  .stats-total strong{font-size:1.15rem;line-height:1.1}
+  .stats-total span{font-size:.68rem;color:var(--text2)}
+  .trend-chart{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px;align-items:end;border-bottom:1px solid var(--border);padding:4px 0 6px}
+  .trend-day{min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:4px}
+  .trend-count{font-size:.65rem;font-weight:650;color:var(--text2);height:12px}
+  .trend-track{width:min(22px,100%);height:54px;display:flex;align-items:flex-end;border-radius:7px;background:color-mix(in srgb,var(--accent) 8%,transparent);overflow:hidden}
+  .trend-bar{width:100%;min-height:2px;border-radius:7px;background:linear-gradient(180deg,var(--accent2),var(--accent));transition:height .25s}
+  .trend-day-label{font-size:.65rem;color:var(--text2);text-transform:lowercase}
+  .stats-empty{color:var(--text2);text-align:center;padding:16px 8px}
+  .sync-indicator{font-size:.72rem;line-height:1.3;color:var(--text2);margin:4px 0 0;max-width:calc(100vw - 96px)}
+  .sync-indicator.needs-sync{color:#b45309}
+  :root[data-theme="dark"] .sync-indicator.needs-sync{color:#fbbf24}
+  .add-card-tile{min-height:150px;border:2px dashed var(--border);border-radius:22px;background:color-mix(in srgb,var(--accent) 4%,var(--card-bg));color:var(--accent);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;font-size:.9rem;font-weight:700;cursor:pointer;transition:transform .15s,border-color .15s}
+  .add-card-tile:active{transform:scale(.97)}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  .add-card-plus{font-size:2.6rem;font-weight:400;line-height:1}
+  .local-data-note{font-size:.82rem;color:var(--text2);line-height:1.45;padding:10px 12px;border-radius:10px;background:color-mix(in srgb,#f59e0b 9%,var(--panel-bg))}
+
 
   @media (orientation: landscape) {
     .grid{ grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); padding-bottom:calc(env(safe-area-inset-bottom, 8px) + 8px); }
@@ -141,7 +163,7 @@
 <body data-theme="light">
 <div id="app">
   <div class="app-header">
-    <h1>🚇 Cartes Métro Paris</h1>
+    <div><h1>🚇 Cartes Métro Paris</h1><p class="sync-indicator needs-sync" id="syncIndicator" aria-live="polite">Local uniquement · non synchronisé</p></div>
     <button id="menuBtn" class="icon-btn">☰<span class="menu-badge" id="menuBadge"></span></button>
   </div>
   <div class="grid" id="grid"></div>
@@ -150,7 +172,7 @@
 <div class="overlay" id="menuOverlay">
   <div class="panel">
     <div class="panel-header"><h2>Menu</h2><button class="close-modal" id="closeMenuBtn">✕</button></div>
-    <div class="account-area"><div class="account-status" id="accountStatus">Non connecté — données enregistrées sur cet appareil.</div><div class="account-buttons"><button class="menu-item" id="signInBtn">Connexion / compte</button><button class="menu-item" id="signOutBtn" hidden>Déconnexion</button></div><div class="sync-status" id="syncStatus"></div></div>
+    <div class="account-area"><div class="account-status" id="accountStatus">Local only — changes are not synced.</div><div class="local-data-note">Sans compte, les données restent uniquement dans ce navigateur et ne sont pas synchronisées. Fermer le navigateur ne les efface normalement pas. En revanche, effacer les données du site, utiliser la navigation privée ou changer de navigateur/appareil peut les faire perdre. Exportez une sauvegarde depuis le menu.</div><div class="account-buttons"><button class="menu-item" id="signInBtn">Connexion / compte</button><button class="menu-item" id="signOutBtn" hidden>Déconnexion</button></div><div class="sync-status" id="syncStatus"></div></div>
     <div class="switch-row"><span>Mode sombre</span><input type="checkbox" id="themeToggle"></div>
     <button class="menu-item" id="addCardBtn">＋ Ajouter une carte</button>
     <button class="menu-item" id="manageCardsBtn">✎ Gérer les cartes</button>
@@ -232,12 +254,12 @@ const LOW_THRESHOLD=3;
 
 function hapticTap(){ if('vibrate' in navigator){ try{ navigator.vibrate(10); }catch(e){} } }
 
-const DEFAULT_CARDS=()=>[
-  {id:uid(),name:'Caro',rides:10,color:CARD_COLORS[0],presets:[10,20,30],log:[]},
-  {id:uid(),name:'Sieb',rides:10,color:CARD_COLORS[1],presets:[10,20,30],log:[]},
-  {id:uid(),name:'Chloé',rides:10,color:CARD_COLORS[2],presets:[10,20,30],log:[]},
-  {id:uid(),name:'Elise',rides:10,color:CARD_COLORS[3],presets:[10,20,30],log:[]},
-];
+const DEFAULT_CARDS=()=>[{id:uid(),name:'My name',rides:0,color:CARD_COLORS[0],presets:[10,20,30],log:[]}];
+function migrateLegacyDefaults(cards){
+  const legacyNames=['Caro','Sieb','Chloé','Elise'];
+  const isUntouchedDefaults=cards.length===4&&cards.every((c,i)=>c.name===legacyNames[i]&&c.rides===10&&Array.isArray(c.log)&&c.log.length===0);
+  return isUntouchedDefaults?DEFAULT_CARDS():cards;
+}
 
 function ensureCardDefaults(card, idx){
   if(!card.color) card.color = CARD_COLORS[idx % CARD_COLORS.length];
@@ -253,7 +275,7 @@ function loadState(){
     if(raw){
       const p=JSON.parse(raw);
       if(p && Array.isArray(p.cards)){
-        p.cards = p.cards.map((c,i)=>ensureCardDefaults(c,i));
+        p.cards = migrateLegacyDefaults(p.cards.map((c,i)=>ensureCardDefaults(c,i)));
         if(!p.theme) p.theme='light';
         return p;
       }
@@ -266,33 +288,49 @@ function saveState(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); 
 
 const accountStatus=document.getElementById('accountStatus');
 const syncStatus=document.getElementById('syncStatus');
+const syncIndicator=document.getElementById('syncIndicator');
 const signInBtn=document.getElementById('signInBtn'),signOutBtn=document.getElementById('signOutBtn');
 const authOverlay=document.getElementById('authOverlay'),authForm=document.getElementById('authForm');
 const authEmail=document.getElementById('authEmail'),authPassword=document.getElementById('authPassword');
 const rememberLogin=document.getElementById('rememberLogin'),authError=document.getElementById('authError');
 const authSubmitBtn=document.getElementById('authSubmitBtn'),createAccountBtn=document.getElementById('createAccountBtn');
-function updateAccountUi(){accountStatus.textContent=cloudUser?'Connecté : '+cloudUser.email:'Non connecté — données enregistrées sur cet appareil.';signInBtn.hidden=!!cloudUser;signOutBtn.hidden=!cloudUser;if(!supabaseClient)syncStatus.textContent='Configurez Supabase (voir README.md).';}
+function setSyncStatus(message){
+ syncStatus.textContent=message||'';
+ const offline=!navigator.onLine;
+ const needsSync=offline||!cloudUser||/échec|impossible|attente|chargement/i.test(message||'');
+ syncIndicator.classList.toggle('needs-sync',needsSync);
+ syncIndicator.textContent=offline?'Hors ligne · modifications non synchronisées':(!cloudUser?'Local uniquement · non synchronisé':(message||'Connecté · synchronisation active'));
+}
+function updateAccountUi(){
+ const localNote='Sans compte, les données restent uniquement dans ce navigateur et ne sont pas synchronisées. Fermer le navigateur ne les efface normalement pas. En revanche, effacer les données du site, utiliser la navigation privée ou changer de navigateur/appareil peut les faire perdre. Exportez une sauvegarde depuis le menu.';
+ accountStatus.textContent=cloudUser?'Connecté : '+cloudUser.email+'. Les cartes se synchronisent avec votre compte lorsque vous êtes en ligne.':localNote;
+ signInBtn.hidden=!!cloudUser;signOutBtn.hidden=!cloudUser;
+ if(!supabaseClient)setSyncStatus('Supabase n’est pas configuré.');
+ else setSyncStatus(cloudUser?'Connecté · synchronisation active':'');
+}
 function showAuth(){authError.textContent='';authForm.reset();rememberLogin.checked=localStorage.getItem('metroRememberLogin')==='true';authSubmitBtn.textContent='Connexion';authSubmitBtn.dataset.mode='signin';createAccountBtn.hidden=false;authOverlay.classList.add('active');}
 function closeAuth(){authOverlay.classList.remove('active');}
 function setAuthMode(create){authSubmitBtn.dataset.mode=create?'signup':'signin';authSubmitBtn.textContent=create?'Créer le compte':'Connexion';createAccountBtn.hidden=create;authError.textContent='';}
-function scheduleCloudSave(){clearTimeout(saveTimer);syncStatus.textContent='Modifications en attente…';saveTimer=setTimeout(saveCardsToCloud,700);}
+function scheduleCloudSave(){clearTimeout(saveTimer);setSyncStatus('Modifications en attente de synchronisation…');saveTimer=setTimeout(saveCardsToCloud,700);}
 async function saveCardsToCloud(){
  if(!supabaseClient||!cloudUser||!cloudReady)return;
+ if(!navigator.onLine){setSyncStatus('Hors ligne · synchronisation à la reconnexion');return;}
  const rows=state.cards.map((c,position)=>({id:c.id,user_id:cloudUser.id,name:c.name,rides:c.rides,color:c.color,presets:c.presets,log:c.log,position}));
  const {data:existing,error:readError}=await supabaseClient.from('metro_cards').select('id').eq('user_id',cloudUser.id);
- if(readError){syncStatus.textContent='Échec de synchronisation. Données locales conservées.';return;}
+ if(readError){setSyncStatus('Échec de synchronisation · données conservées sur cet appareil');return;}
  const keep=new Set(state.cards.map(c=>c.id)),removed=(existing||[]).map(r=>r.id).filter(id=>!keep.has(id));
- if(removed.length){const {error}=await supabaseClient.from('metro_cards').delete().in('id',removed);if(error){syncStatus.textContent='Échec de suppression synchronisée.';return;}}
- if(rows.length){const {error}=await supabaseClient.from('metro_cards').upsert(rows,{onConflict:'id'});if(error){syncStatus.textContent='Échec de synchronisation. Données locales conservées.';return;}}
- syncStatus.textContent='Synchronisé';
+ if(removed.length){const {error}=await supabaseClient.from('metro_cards').delete().in('id',removed);if(error){setSyncStatus('Échec de synchronisation de la suppression');return;}}
+ if(rows.length){const {error}=await supabaseClient.from('metro_cards').upsert(rows,{onConflict:'id'});if(error){setSyncStatus('Échec de synchronisation · données conservées sur cet appareil');return;}}
+ setSyncStatus('Synchronisé');
 }
 async function loadCardsFromCloud(user){
- cloudUser=user;cloudReady=false;updateAccountUi();if(!supabaseClient||!user)return;syncStatus.textContent='Chargement des cartes…';
+ cloudUser=user;cloudReady=false;updateAccountUi();if(!supabaseClient||!user)return;setSyncStatus('Chargement des cartes…');
  const {data,error}=await supabaseClient.from('metro_cards').select('id,name,rides,color,presets,log,position').eq('user_id',user.id).order('position');
- if(error){syncStatus.textContent='Impossible de charger les cartes.';return;}
- if(data&&data.length){isApplyingCloud=true;state.cards=data.map((r,i)=>ensureCardDefaults({id:r.id,name:r.name,rides:r.rides,color:r.color,presets:r.presets,log:r.log},i));localStorage.setItem(STORAGE_KEY,JSON.stringify(state));render();isApplyingCloud=false;}
+ if(error){setSyncStatus('Impossible de charger les cartes');return;}
+ let migratedLegacy=false;
+ if(data&&data.length){isApplyingCloud=true;const cloudCards=data.map((r,i)=>ensureCardDefaults({id:r.id,name:r.name,rides:r.rides,color:r.color,presets:r.presets,log:r.log},i));state.cards=migrateLegacyDefaults(cloudCards);migratedLegacy=state.cards!==cloudCards;localStorage.setItem(STORAGE_KEY,JSON.stringify(state));render();isApplyingCloud=false;}
  cloudReady=true;
- if(!data.length&&state.cards.length)await saveCardsToCloud();else syncStatus.textContent='Synchronisé';
+ if(migratedLegacy)await saveCardsToCloud();else if(!data.length&&state.cards.length)await saveCardsToCloud();else setSyncStatus('Synchronisé');
 }
 async function performAuth(mode){
  if(!supabaseClient){authError.textContent='Supabase n’est pas configuré. Voir README.md.';return;}
@@ -311,7 +349,7 @@ async function performAuth(mode){
  }catch(e){authError.textContent=e.message||'Une erreur est survenue.';}finally{authSubmitBtn.disabled=false;}
 }
 signInBtn.addEventListener('click',showAuth);
-signOutBtn.addEventListener('click',async()=>{if(supabaseClient){await supabaseClient.auth.signOut();cloudUser=null;cloudReady=false;updateAccountUi();syncStatus.textContent='Déconnecté. Données locales conservées.';}});
+signOutBtn.addEventListener('click',async()=>{if(supabaseClient){await supabaseClient.auth.signOut();cloudUser=null;cloudReady=false;updateAccountUi();setSyncStatus('Local uniquement · non synchronisé');}});
 document.getElementById('cancelAuthBtn').addEventListener('click',closeAuth);
 authOverlay.addEventListener('click',e=>{if(e.target===authOverlay)closeAuth();});
 createAccountBtn.addEventListener('click',()=>setAuthMode(true));
@@ -385,6 +423,7 @@ function getUsage(card, days){
 function render(){
   grid.innerHTML='';
   state.cards.forEach(c=> grid.appendChild(buildCardEl(c)));
+  const addTile=document.createElement('button');addTile.type='button';addTile.className='add-card-tile';addTile.setAttribute('aria-label','Ajouter une carte');addTile.innerHTML='<span class="add-card-plus">＋</span><span>Ajouter une carte</span>';addTile.addEventListener('click',addCard);grid.appendChild(addTile);
   const anyLow = state.cards.some(c=>c.rides<=LOW_THRESHOLD);
   menuBadge.classList.toggle('show', anyLow);
 }
@@ -526,6 +565,7 @@ function renderColorSwatches(){
 function openEditModal(id){
   activeCardId=id;
   const card=state.cards.find(c=>c.id===id); if(!card) return;
+  deleteCardBtn.disabled=state.cards.length<=1;
   editNameInput.value=card.name; editRidesInput.value=card.rides;
   editSelectedColor=card.color;
   preset1Input.value=card.presets[0];
@@ -547,6 +587,7 @@ saveCardBtn.addEventListener('click', ()=>{
   saveState(); render(); hideOverlay(editModal);
 });
 deleteCardBtn.addEventListener('click', ()=>{
+  if(state.cards.length<=1){alert('Il faut conserver au moins une carte.');return;}
   if(confirm('Supprimer cette carte ?')){
     state.cards=state.cards.filter(c=>c.id!==activeCardId);
     saveState(); render(); hideOverlay(editModal);
@@ -554,7 +595,7 @@ deleteCardBtn.addEventListener('click', ()=>{
 });
 
 function addCard(){
-  const card=ensureCardDefaults({id:uid(), name:'Nouvelle carte', rides:0}, state.cards.length);
+  const card=ensureCardDefaults({id:uid(), name:'My name', rides:0}, state.cards.length);
   state.cards.push(card); saveState(); render();
   openEditModal(card.id);
 }
@@ -569,8 +610,8 @@ function renderManageList(){
     row.className='manage-row';
     row.innerHTML=`<span>${escapeHtml(card.name)} — ${card.rides} tickets</span>
       <span class="manage-actions">
-        <button data-action="edit" data-id="${card.id}">✎</button>
-        <button data-action="delete" data-id="${card.id}">🗑</button>
+        <button data-action="edit" data-id="${card.id}" aria-label="Edit ${escapeHtml(card.name)}">✎</button>
+        <button data-action="delete" data-id="${card.id}" aria-label="Delete ${escapeHtml(card.name)}" ${state.cards.length===1?'disabled title="At least one card is required"':''}>🗑</button>
       </span>`;
     manageList.appendChild(row);
   });
@@ -580,6 +621,7 @@ manageList.addEventListener('click', e=>{
   const id=btn.dataset.id;
   if(btn.dataset.action==='edit'){ hideOverlay(manageModal); openEditModal(id); }
   if(btn.dataset.action==='delete'){
+    if(state.cards.length<=1){alert('Il faut conserver au moins une carte.');return;}
     if(confirm('Supprimer cette carte ?')){
       state.cards=state.cards.filter(c=>c.id!==id);
       saveState(); render(); renderManageList();
@@ -587,19 +629,32 @@ manageList.addEventListener('click', e=>{
   }
 });
 
+function getDailyUsage(card,days=7){
+ const today=new Date();today.setHours(0,0,0,0);
+ const buckets=[];
+ for(let offset=days-1;offset>=0;offset--){const d=new Date(today);d.setDate(today.getDate()-offset);buckets.push({date:d,total:0});}
+ const start=buckets[0].date.getTime();
+ for(const event of card.log){if(event.delta>=0||event.ts<start)continue;const d=new Date(event.ts);d.setHours(0,0,0,0);const bucket=buckets.find(item=>item.date.getTime()===d.getTime());if(bucket)bucket.total+=Math.abs(event.delta);}
+ return buckets;
+}
+function renderStats(){
+ statsList.innerHTML='';statsList.className='stats-list';
+ if(!state.cards.length){statsList.innerHTML='<p class="stats-empty">Aucune carte.</p>';return;}
+ state.cards.forEach(card=>{
+  const used7=getUsage(card,7),used30=getUsage(card,30),series=getDailyUsage(card,7),max=Math.max(1,...series.map(day=>day.total));
+  const row=document.createElement('section');row.className='stats-card';
+  const chart=series.map(day=>{
+   const height=day.total===0?2:Math.max(5,Math.round(day.total/max*54));
+   const label=day.date.toLocaleDateString('fr-FR',{weekday:'short'});
+   const dateLabel=day.date.toLocaleDateString('fr-FR',{day:'numeric',month:'short'});
+   return `<div class="trend-day" title="${dateLabel}: ${day.total} trajet(s)"><span class="trend-count">${day.total}</span><span class="trend-track"><span class="trend-bar" style="height:${height}px"></span></span><span class="trend-day-label">${label}</span></div>`;
+  }).join('');
+  row.innerHTML=`<div class="stats-card-header"><span class="name">${escapeHtml(card.name)}</span><div class="stats-totals"><div class="stats-total"><strong>${used7}</strong><span>7 DERNIERS JOURS</span></div><div class="stats-total"><strong>${used30}</strong><span>30 DERNIERS JOURS</span></div></div></div><div class="trend-chart" role="img" aria-label="Trajets quotidiens des 7 derniers jours : ${series.map(d=>d.total).join(', ')}">${chart}</div>`;
+  statsList.appendChild(row);
+ });
+}
 statsBtn.addEventListener('click', ()=>{
-  hideOverlay(menuOverlay);
-  statsList.innerHTML='';
-  if(state.cards.length===0){ statsList.innerHTML='<p>Aucune carte.</p>'; }
-  state.cards.forEach(card=>{
-    const used7=getUsage(card,7);
-    const used30=getUsage(card,30);
-    const row=document.createElement('div');
-    row.className='stats-row';
-    row.innerHTML=`<span class="name">${escapeHtml(card.name)}</span><span>7j: ${used7} · 30j: ${used30}</span>`;
-    statsList.appendChild(row);
-  });
-  showOverlay(statsModal);
+ hideOverlay(menuOverlay);renderStats();showOverlay(statsModal);
 });
 
 exportBtn.addEventListener('click', ()=>{
@@ -625,7 +680,7 @@ importFile.addEventListener('change', (e)=>{
       const parsed=JSON.parse(ev.target.result);
       if(parsed && Array.isArray(parsed.cards)){
         if(confirm('Remplacer toutes les données actuelles par cette sauvegarde ?')){
-          parsed.cards = parsed.cards.map((c,i)=>ensureCardDefaults(c,i));
+          parsed.cards = migrateLegacyDefaults(parsed.cards.map((c,i)=>ensureCardDefaults(c,i))); if(!parsed.cards.length)parsed.cards=DEFAULT_CARDS();
           state = parsed;
           saveState(); applyTheme(); render();
         }
@@ -640,7 +695,7 @@ importFile.addEventListener('change', (e)=>{
 
 resetCardsBtn.addEventListener('click', ()=>{
   hideOverlay(menuOverlay);
-  if(confirm('Réinitialiser aux 4 cartes par défaut ? Action irréversible.')){
+  if(confirm('Revenir à une seule carte vide ? Les cartes actuelles seront remplacées.')){
     state.cards=DEFAULT_CARDS(); saveState(); render();
   }
 });
@@ -656,6 +711,8 @@ closeMenuBtn.addEventListener('click', ()=> hideOverlay(menuOverlay));
 applyTheme();
 render();
 initializeCloud();
+window.addEventListener('offline',()=>setSyncStatus('Hors ligne · modifications non synchronisées'));
+window.addEventListener('online',()=>{if(cloudUser&&cloudReady)saveCardsToCloud();else setSyncStatus('Local uniquement · non synchronisé');});
 </script>
 </body>
 </html>

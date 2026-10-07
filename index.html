@@ -247,7 +247,7 @@ const authStorage={
  removeItem(key){localStorage.removeItem(key);memoryAuthSession=null;}
 };
 const supabaseClient=window.supabase?window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{auth:{storage:authStorage,persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}}):null;
-let cloudUser=null,cloudReady=false,saveTimer=null,isApplyingCloud=false,cloudRevision=0,cloudBaselineFingerprint='',saveInFlight=false,saveAgain=false,cloudPollTimer=null;
+let cloudUser=null,cloudReady=false,saveTimer=null,isApplyingCloud=false,cloudRevision=0,cloudBaselineFingerprint='',saveInFlight=false,saveAgain=false,cloudPollTimer=null,cloudLoadingUserId=null;
 const uid=()=>'c'+Date.now()+Math.random().toString(36).slice(2,8);
 const CARD_COLORS=['#0077b6','#00b4a6','#f77f00','#7209b7','#2a9d8f','#e63946','#ffb703','#457b9d'];
 const LOW_THRESHOLD=3;
@@ -384,6 +384,8 @@ async function saveCardsToCloud(){
  }
 }
 async function loadCardsFromCloud(user){
+ if(cloudLoadingUserId===user.id)return;
+ cloudLoadingUserId=user.id;
  cloudUser=user;cloudReady=false;updateAccountUi();
  if(!supabaseClient||!user)return;
  setSyncStatus('Chargement des données en ligne…');
@@ -409,7 +411,7 @@ async function loadCardsFromCloud(user){
   console.error('Metro Cards load error',error);
   cloudReady=false;
   setSyncStatus('Impossible de charger les données en ligne');
- }
+ }finally{if(cloudLoadingUserId===user.id)cloudLoadingUserId=null;}
 }
 async function checkForRemoteChanges(){
  if(!supabaseClient||!cloudUser||!cloudReady||!navigator.onLine||document.hidden)return;
@@ -454,7 +456,7 @@ authForm.addEventListener('submit',e=>{e.preventDefault();performAuth(authSubmit
 async function initializeCloud(){
  updateAccountUi();if(!supabaseClient)return;
  const {data:{session}}=await supabaseClient.auth.getSession();if(session)await loadCardsFromCloud(session.user);
- supabaseClient.auth.onAuthStateChange((event,session)=>{if(event==='SIGNED_OUT'){clearInterval(cloudPollTimer);cloudUser=null;cloudReady=false;cloudRevision=0;cloudBaselineFingerprint='';updateAccountUi();}else if(session&&cloudUser?.id!==session.user.id)queueMicrotask(()=>loadCardsFromCloud(session.user));});
+ supabaseClient.auth.onAuthStateChange((event,session)=>{if(event==='SIGNED_OUT'){clearInterval(cloudPollTimer);cloudUser=null;cloudReady=false;cloudRevision=0;cloudBaselineFingerprint='';cloudLoadingUserId=null;updateAccountUi();}else if(session&&cloudUser?.id!==session.user.id)queueMicrotask(()=>loadCardsFromCloud(session.user));});
 }
 
 const grid=document.getElementById('grid');

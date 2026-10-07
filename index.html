@@ -96,6 +96,7 @@
   .panel-header{ display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
   .panel-header h2{ margin:0; font-size:1.1rem; }
   .menu-item{ text-align:left; padding:14px 16px; border-radius:12px; border:1px solid var(--border); background:transparent; color:var(--text); font-size:.95rem; cursor:pointer; }
+  .account-area{display:flex;flex-direction:column;gap:10px}.account-status{font-size:.82rem;color:var(--text2);word-break:break-word}.account-buttons{display:flex;gap:8px}.account-buttons button{flex:1}.sync-status{font-size:.8rem;color:var(--text2);min-height:1em}.auth-overlay{position:fixed;inset:0;background:rgba(0,0,0,.58);display:none;align-items:center;justify-content:center;z-index:100;padding:20px}.auth-overlay.active{display:flex}.auth-card{width:100%;max-width:380px;background:var(--card-bg);border-radius:20px;padding:24px;display:flex;flex-direction:column;gap:14px}.auth-card h2{margin:0}.auth-card p{margin:0;color:var(--text2);font-size:.9rem}.auth-card label{font-size:.85rem;color:var(--text2);display:flex;flex-direction:column;gap:6px}.auth-card input{padding:11px 12px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--text);font-size:1rem}.auth-card .checkbox-label{display:flex;flex-direction:row;align-items:center;gap:8px}.auth-error{color:var(--danger);font-size:.85rem;min-height:1em}
   .switch-row{ display:flex; justify-content:space-between; align-items:center; font-size:.95rem; padding:16px; border-radius:12px; border:1px solid var(--border); }
 
   .modal{
@@ -149,6 +150,7 @@
 <div class="overlay" id="menuOverlay">
   <div class="panel">
     <div class="panel-header"><h2>Menu</h2><button class="close-modal" id="closeMenuBtn">✕</button></div>
+    <div class="account-area"><div class="account-status" id="accountStatus">Non connecté — données enregistrées sur cet appareil.</div><div class="account-buttons"><button class="menu-item" id="signInBtn">Connexion / compte</button><button class="menu-item" id="signOutBtn" hidden>Déconnexion</button></div><div class="sync-status" id="syncStatus"></div></div>
     <div class="switch-row"><span>Mode sombre</span><input type="checkbox" id="themeToggle"></div>
     <button class="menu-item" id="addCardBtn">＋ Ajouter une carte</button>
     <button class="menu-item" id="manageCardsBtn">✎ Gérer les cartes</button>
@@ -210,8 +212,14 @@
   </div>
 </div>
 
+<div class="auth-overlay" id="authOverlay"><form class="auth-card" id="authForm"><h2>Compte Metro Cards</h2><p>Créez un compte ou connectez-vous pour synchroniser vos cartes entre appareils.</p><label>Adresse e-mail<input id="authEmail" type="email" autocomplete="email" required></label><label>Mot de passe<input id="authPassword" type="password" autocomplete="current-password" minlength="8" required></label><label class="checkbox-label"><input id="rememberLogin" type="checkbox"> Rester connecté sur cet appareil</label><div class="auth-error" id="authError"></div><div class="modal-actions"><button type="button" class="btn-secondary" id="cancelAuthBtn">Annuler</button><button type="submit" class="btn-primary" id="authSubmitBtn">Connexion</button></div><button type="button" class="menu-item" id="createAccountBtn">Créer un compte</button></form></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 const STORAGE_KEY='metroCardsAppData';
+const SUPABASE_URL=window.METRO_SUPABASE_URL||'';
+const SUPABASE_PUBLISHABLE_KEY=window.METRO_SUPABASE_PUBLISHABLE_KEY||'';
+const supabaseClient=(SUPABASE_URL&&SUPABASE_PUBLISHABLE_KEY&&window.supabase)?window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}}):null;
+let cloudUser=null,cloudReady=false,saveTimer=null,isApplyingCloud=false;
 const uid=()=>'c'+Date.now()+Math.random().toString(36).slice(2,8);
 const CARD_COLORS=['#0077b6','#00b4a6','#f77f00','#7209b7','#2a9d8f','#e63946','#ffb703','#457b9d'];
 const LOW_THRESHOLD=3;
@@ -248,7 +256,64 @@ function loadState(){
   return {theme:'light', cards:DEFAULT_CARDS()};
 }
 let state=loadState();
-function saveState(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+function saveState(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); if(cloudUser&&cloudReady&&!isApplyingCloud) scheduleCloudSave(); }
+
+const accountStatus=document.getElementById('accountStatus');
+const syncStatus=document.getElementById('syncStatus');
+const signInBtn=document.getElementById('signInBtn'),signOutBtn=document.getElementById('signOutBtn');
+const authOverlay=document.getElementById('authOverlay'),authForm=document.getElementById('authForm');
+const authEmail=document.getElementById('authEmail'),authPassword=document.getElementById('authPassword');
+const rememberLogin=document.getElementById('rememberLogin'),authError=document.getElementById('authError');
+const authSubmitBtn=document.getElementById('authSubmitBtn'),createAccountBtn=document.getElementById('createAccountBtn');
+function updateAccountUi(){accountStatus.textContent=cloudUser?'Connecté : '+cloudUser.email:'Non connecté — données enregistrées sur cet appareil.';signInBtn.hidden=!!cloudUser;signOutBtn.hidden=!cloudUser;if(!supabaseClient)syncStatus.textContent='Configurez Supabase (voir README.md).';}
+function showAuth(){authError.textContent='';authForm.reset();rememberLogin.checked=localStorage.getItem('metroRememberLogin')==='true';authSubmitBtn.textContent='Connexion';authSubmitBtn.dataset.mode='signin';createAccountBtn.hidden=false;authOverlay.classList.add('active');}
+function closeAuth(){authOverlay.classList.remove('active');}
+function setAuthMode(create){authSubmitBtn.dataset.mode=create?'signup':'signin';authSubmitBtn.textContent=create?'Créer le compte':'Connexion';createAccountBtn.hidden=create;authError.textContent='';}
+function scheduleCloudSave(){clearTimeout(saveTimer);syncStatus.textContent='Modifications en attente…';saveTimer=setTimeout(saveCardsToCloud,700);}
+async function saveCardsToCloud(){
+ if(!supabaseClient||!cloudUser||!cloudReady)return;
+ const rows=state.cards.map((c,position)=>({id:c.id,user_id:cloudUser.id,name:c.name,rides:c.rides,color:c.color,presets:c.presets,log:c.log,position}));
+ const {data:existing,error:readError}=await supabaseClient.from('metro_cards').select('id').eq('user_id',cloudUser.id);
+ if(readError){syncStatus.textContent='Échec de synchronisation. Données locales conservées.';return;}
+ const keep=new Set(state.cards.map(c=>c.id)),removed=(existing||[]).map(r=>r.id).filter(id=>!keep.has(id));
+ if(removed.length){const {error}=await supabaseClient.from('metro_cards').delete().in('id',removed);if(error){syncStatus.textContent='Échec de suppression synchronisée.';return;}}
+ if(rows.length){const {error}=await supabaseClient.from('metro_cards').upsert(rows,{onConflict:'id'});if(error){syncStatus.textContent='Échec de synchronisation. Données locales conservées.';return;}}
+ syncStatus.textContent='Synchronisé';
+}
+async function loadCardsFromCloud(user){
+ cloudUser=user;cloudReady=false;updateAccountUi();if(!supabaseClient||!user)return;syncStatus.textContent='Chargement des cartes…';
+ const {data,error}=await supabaseClient.from('metro_cards').select('id,name,rides,color,presets,log,position').eq('user_id',user.id).order('position');
+ if(error){syncStatus.textContent='Impossible de charger les cartes.';return;}
+ if(data&&data.length){isApplyingCloud=true;state.cards=data.map((r,i)=>ensureCardDefaults({id:r.id,name:r.name,rides:r.rides,color:r.color,presets:r.presets,log:r.log},i));localStorage.setItem(STORAGE_KEY,JSON.stringify(state));render();isApplyingCloud=false;}
+ cloudReady=true;
+ if(!data.length&&state.cards.length)await saveCardsToCloud();else syncStatus.textContent='Synchronisé';
+}
+async function performAuth(mode){
+ if(!supabaseClient){authError.textContent='Supabase n’est pas configuré. Voir README.md.';return;}
+ authSubmitBtn.disabled=true;authError.textContent='';
+ try{
+  const email=authEmail.value.trim(),password=authPassword.value;
+  if(mode==='signup'){
+   const {data,error}=await supabaseClient.auth.signUp({email,password});if(error)throw error;
+   if(data.session){localStorage.setItem('metroRememberLogin',String(rememberLogin.checked));closeAuth();await loadCardsFromCloud(data.user);}
+   else authError.textContent='Vérifiez votre e-mail pour confirmer le compte, puis connectez-vous.';
+  }else{
+   const {data,error}=await supabaseClient.auth.signInWithPassword({email,password});if(error)throw error;
+   localStorage.setItem('metroRememberLogin',String(rememberLogin.checked));closeAuth();await loadCardsFromCloud(data.user);
+  }
+ }catch(e){authError.textContent=e.message||'Une erreur est survenue.';}finally{authSubmitBtn.disabled=false;}
+}
+signInBtn.addEventListener('click',showAuth);
+signOutBtn.addEventListener('click',async()=>{if(supabaseClient){await supabaseClient.auth.signOut();cloudUser=null;cloudReady=false;updateAccountUi();syncStatus.textContent='Déconnecté. Données locales conservées.';}});
+document.getElementById('cancelAuthBtn').addEventListener('click',closeAuth);
+authOverlay.addEventListener('click',e=>{if(e.target===authOverlay)closeAuth();});
+createAccountBtn.addEventListener('click',()=>setAuthMode(true));
+authForm.addEventListener('submit',e=>{e.preventDefault();performAuth(authSubmitBtn.dataset.mode||'signin');});
+async function initializeCloud(){
+ updateAccountUi();if(!supabaseClient)return;
+ const {data:{session}}=await supabaseClient.auth.getSession();if(session)await loadCardsFromCloud(session.user);
+ supabaseClient.auth.onAuthStateChange((event,session)=>{if(event==='SIGNED_OUT'){cloudUser=null;cloudReady=false;updateAccountUi();}else if(session&&!cloudUser)queueMicrotask(()=>loadCardsFromCloud(session.user));});
+}
 
 const grid=document.getElementById('grid');
 const menuBtn=document.getElementById('menuBtn');
@@ -583,6 +648,7 @@ closeMenuBtn.addEventListener('click', ()=> hideOverlay(menuOverlay));
 
 applyTheme();
 render();
+initializeCloud();
 </script>
 </body>
 </html>

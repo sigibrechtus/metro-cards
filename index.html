@@ -216,9 +216,15 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 const STORAGE_KEY='metroCardsAppData';
-const SUPABASE_URL=window.METRO_SUPABASE_URL||'';
-const SUPABASE_PUBLISHABLE_KEY=window.METRO_SUPABASE_PUBLISHABLE_KEY||'';
-const supabaseClient=(SUPABASE_URL&&SUPABASE_PUBLISHABLE_KEY&&window.supabase)?window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}}):null;
+const SUPABASE_URL='https://shntwqeowkuvtdfwpvlh.supabase.co';
+const SUPABASE_PUBLISHABLE_KEY='sb_publishable_e1L8IxkHctgpFMiLD9XCqA_hGTFKeV7';
+let memoryAuthSession=null;
+const authStorage={
+ getItem(key){return localStorage.getItem('metroRememberLogin')==='true'?localStorage.getItem(key):memoryAuthSession;},
+ setItem(key,value){if(localStorage.getItem('metroRememberLogin')==='true')localStorage.setItem(key,value);else memoryAuthSession=value;},
+ removeItem(key){localStorage.removeItem(key);memoryAuthSession=null;}
+};
+const supabaseClient=window.supabase?window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{auth:{storage:authStorage,persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}}):null;
 let cloudUser=null,cloudReady=false,saveTimer=null,isApplyingCloud=false;
 const uid=()=>'c'+Date.now()+Math.random().toString(36).slice(2,8);
 const CARD_COLORS=['#0077b6','#00b4a6','#f77f00','#7209b7','#2a9d8f','#e63946','#ffb703','#457b9d'];
@@ -292,14 +298,15 @@ async function performAuth(mode){
  if(!supabaseClient){authError.textContent='Supabase n’est pas configuré. Voir README.md.';return;}
  authSubmitBtn.disabled=true;authError.textContent='';
  try{
+  localStorage.setItem('metroRememberLogin',String(rememberLogin.checked));
   const email=authEmail.value.trim(),password=authPassword.value;
   if(mode==='signup'){
    const {data,error}=await supabaseClient.auth.signUp({email,password});if(error)throw error;
-   if(data.session){localStorage.setItem('metroRememberLogin',String(rememberLogin.checked));closeAuth();await loadCardsFromCloud(data.user);}
+   if(data.session){closeAuth();await loadCardsFromCloud(data.user);}
    else authError.textContent='Vérifiez votre e-mail pour confirmer le compte, puis connectez-vous.';
   }else{
    const {data,error}=await supabaseClient.auth.signInWithPassword({email,password});if(error)throw error;
-   localStorage.setItem('metroRememberLogin',String(rememberLogin.checked));closeAuth();await loadCardsFromCloud(data.user);
+   closeAuth();await loadCardsFromCloud(data.user);
   }
  }catch(e){authError.textContent=e.message||'Une erreur est survenue.';}finally{authSubmitBtn.disabled=false;}
 }

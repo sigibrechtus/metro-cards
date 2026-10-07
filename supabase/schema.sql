@@ -52,7 +52,18 @@ create policy "Users can read their own metro card sync state"
   on public.metro_card_sync_state for select to authenticated
   using ((select auth.uid()) = user_id);
 
-grant select on public.metro_card_sync_state to authenticated;
+drop policy if exists "Users can insert their own metro card sync state" on public.metro_card_sync_state;
+create policy "Users can insert their own metro card sync state"
+  on public.metro_card_sync_state for insert to authenticated
+  with check ((select auth.uid()) = user_id);
+
+drop policy if exists "Users can update their own metro card sync state" on public.metro_card_sync_state;
+create policy "Users can update their own metro card sync state"
+  on public.metro_card_sync_state for update to authenticated
+  using ((select auth.uid()) = user_id)
+  with check ((select auth.uid()) = user_id);
+
+grant select, insert, update on public.metro_card_sync_state to authenticated;
 
 insert into public.metro_card_sync_state (user_id, revision)
 select user_id, 1
@@ -66,7 +77,7 @@ create or replace function public.replace_metro_cards_if_revision(
 )
 returns boolean
 language plpgsql
-security definer
+security invoker
 set search_path = ''
 as $function$
 declare

@@ -117,6 +117,12 @@
   .chip{ flex:1; padding:8px 0; border-radius:10px; border:1px solid var(--border); background:transparent; color:var(--text); font-weight:600; }
   .preset-row{ display:flex; gap:8px; }
   .preset-row input{ flex:1; }
+  .edit-card-modal{width:min(92vw,400px);max-width:400px;align-items:stretch}
+  .edit-card-modal label{width:100%}
+  .edit-card-modal input[type=text],.edit-card-modal input[type=number]{width:100%;min-height:44px}
+  .edit-card-modal .preset-row{flex-direction:column;width:100%}
+  .edit-card-modal .modal-actions{flex-direction:column;align-items:stretch}
+  .edit-card-modal .modal-actions button{width:100%;min-height:44px}
   .color-row{ display:flex; gap:10px; flex-wrap:wrap; }
   .color-swatch{ width:34px; height:34px; border-radius:50%; border:3px solid transparent; cursor:pointer; }
   .color-swatch.selected{ border-color:var(--text); }
@@ -214,7 +220,7 @@
 </div>
 
 <div class="overlay" id="editModal">
-  <div class="modal">
+  <div class="modal edit-card-modal">
     <h2>Modifier la carte</h2>
     <label>Nom<input id="editNameInput" type="text" maxlength="18"></label>
     <label>Tickets restants<input id="editRidesInput" type="number" min="0"></label>
@@ -229,8 +235,8 @@
       </div>
     </label>
     <div class="modal-actions">
-      <button class="btn-danger" id="deleteCardBtn">Supprimer</button>
       <button class="btn-primary" id="saveCardBtn">Enregistrer</button>
+      <button class="btn-danger" id="deleteCardBtn">Supprimer</button>
     </div>
   </div>
 </div>

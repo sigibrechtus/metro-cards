@@ -149,7 +149,7 @@
   .add-card-tile:active{transform:scale(.97)}
   button:disabled{opacity:.45;cursor:not-allowed}
   .add-card-plus{font-size:2.6rem;font-weight:400;line-height:1}
-  .local-data-note{font-size:.82rem;color:var(--text2);line-height:1.45;padding:10px 12px;border-radius:10px;background:color-mix(in srgb,#f59e0b 9%,var(--panel-bg))}
+  .help-modal{max-width:430px;max-height:86vh}.help-content{overflow-y:auto;display:flex;flex-direction:column;gap:14px}.help-content p{margin:0;color:var(--text2);font-size:.88rem;line-height:1.45}.help-content section{border-top:1px solid var(--border);padding-top:10px}.help-content h3{margin:0 0 6px;font-size:.96rem}.help-content ol{margin:6px 0 8px;padding-left:22px;color:var(--text2);font-size:.85rem;line-height:1.45}.help-content a{font-size:.82rem;color:var(--accent)}.help-sync{padding:12px!important;border-radius:12px;background:color-mix(in srgb,var(--accent) 7%,var(--card-bg))}.local-data-note{font-size:.82rem;color:var(--text2);line-height:1.45;padding:10px 12px;border-radius:10px;background:color-mix(in srgb,#f59e0b 9%,var(--panel-bg))}
 
 
   @media (orientation: landscape) {
@@ -163,7 +163,7 @@
 <body data-theme="light">
 <div id="app">
   <div class="app-header">
-    <div><h1>🚇 Cartes Métro Paris</h1><p class="sync-indicator needs-sync" id="syncIndicator" aria-live="polite">Local uniquement · non synchronisé</p></div>
+    <div><h1>🚇 Cartes Métro Paris</h1><p class="sync-indicator needs-sync" id="syncIndicator" aria-live="polite">Connexion requise pour synchroniser</p></div>
     <button id="menuBtn" class="icon-btn">☰<span class="menu-badge" id="menuBadge"></span></button>
   </div>
   <div class="grid" id="grid"></div>
@@ -172,15 +172,30 @@
 <div class="overlay" id="menuOverlay">
   <div class="panel">
     <div class="panel-header"><h2>Menu</h2><button class="close-modal" id="closeMenuBtn">✕</button></div>
-    <div class="account-area"><div class="account-status" id="accountStatus">Local only — changes are not synced.</div><div class="local-data-note">Sans compte, les données restent uniquement dans ce navigateur et ne sont pas synchronisées. Fermer le navigateur ne les efface normalement pas. En revanche, effacer les données du site, utiliser la navigation privée ou changer de navigateur/appareil peut les faire perdre. Exportez une sauvegarde depuis le menu.</div><div class="account-buttons"><button class="menu-item" id="signInBtn">Connexion / compte</button><button class="menu-item" id="signOutBtn" hidden>Déconnexion</button></div><div class="sync-status" id="syncStatus"></div></div>
+    <div class="account-area"><div class="account-status" id="accountStatus">Connectez-vous pour synchroniser vos cartes.</div><div class="local-data-note">Sans compte, les données restent uniquement dans ce navigateur et ne sont pas synchronisées. Fermer le navigateur ne les efface normalement pas. En revanche, effacer les données du site, utiliser la navigation privée ou changer de navigateur/appareil peut les faire perdre. Exportez une sauvegarde depuis le menu.</div><div class="account-buttons"><button class="menu-item" id="signInBtn">Connexion / compte</button><button class="menu-item" id="signOutBtn" hidden>Déconnexion</button></div><div class="sync-status" id="syncStatus"></div></div>
     <div class="switch-row"><span>Mode sombre</span><input type="checkbox" id="themeToggle"></div>
     <button class="menu-item" id="addCardBtn">＋ Ajouter une carte</button>
     <button class="menu-item" id="manageCardsBtn">✎ Gérer les cartes</button>
     <button class="menu-item" id="statsBtn">📊 Statistiques</button>
+    <button class="menu-item" id="helpBtn">❔ Aide — installer l’application</button>
     <button class="menu-item" id="exportBtn">⬇️ Exporter les données</button>
     <button class="menu-item" id="importBtn">⬆️ Importer les données</button>
     <input type="file" id="importFile" accept="application/json" style="display:none">
-    <button class="menu-item" id="resetCardsBtn">↺ Réinitialiser (4 cartes par défaut)</button>
+    <button class="menu-item" id="resetCardsBtn" title="Remplacer toutes les cartes par une seule carte vide">⚠️ Réinitialiser les cartes</button>
+  </div>
+</div>
+
+
+<div class="overlay" id="helpModal">
+  <div class="modal help-modal">
+    <div class="panel-header"><h2>Aide</h2><button class="close-modal" aria-label="Fermer">✕</button></div>
+    <div class="help-content">
+      <p><strong>Ajouter Cartes Métro Paris à l’écran d’accueil</strong> crée une icône qui ouvre le site dans une fenêtre proche d’une application. Ce n’est pas une application native ni une copie indépendante du site.</p>
+      <section><h3>iPhone ou iPad</h3><ol><li>Ouvrez l’adresse du site dans <strong>Safari</strong>.</li><li>Appuyez sur <strong>Partager</strong> (le carré avec la flèche vers le haut).</li><li>Choisissez <strong>Sur l’écran d’accueil</strong> / <strong>Add to Home Screen</strong>.</li><li>Activez <strong>Ouvrir comme app web</strong> si l’option apparaît, puis appuyez sur <strong>Ajouter</strong>.</li></ol><a href="https://support.apple.com/en-tm/guide/iphone/iph42ab2f3a7/ios" target="_blank" rel="noopener noreferrer">Instructions Apple</a></section>
+      <section><h3>Android</h3><ol><li>Ouvrez le site dans <strong>Chrome</strong>.</li><li>Appuyez sur <strong>⋮</strong>, puis <strong>Installer l’application</strong>, <strong>Installer et créer un raccourci</strong> ou <strong>Ajouter à l’écran d’accueil</strong> (le libellé dépend du téléphone).</li><li>Confirmez l’installation ou l’ajout du raccourci.</li></ol><a href="https://support.google.com/chrome/answer/9658361?co=GENIE.Platform%3DAndroid&hl=nl-BE" target="_blank" rel="noopener noreferrer">Instructions Chrome pour Android</a></section>
+      <section><h3>Ordinateur</h3><p>Dans Chrome, ouvrez <strong>⋮ → Caster, enregistrer et partager → Installer la page comme application</strong> (ou utilisez l’icône d’installation dans la barre d’adresse). Dans Edge, ouvrez <strong>… → Autres outils → Applications → Installer ce site en tant qu’application</strong>.</p><p><a href="https://support.google.com/chrome/answer/9658361?co=genie.platform%3DDesktop&hl=en" target="_blank" rel="noopener noreferrer">Instructions Chrome</a> · <a href="https://support.microsoft.com/fr-fr/edge/install-manage-or-uninstall-apps-in-microsoft-edge" target="_blank" rel="noopener noreferrer">Instructions Edge</a></p></section>
+      <section class="help-sync"><h3>Les cartes restent synchronisées en ligne</h3><p>Connectez-vous au <strong>même compte</strong> dans l’app sur chaque appareil. Les cartes sont enregistrées dans Supabase et se synchronisent entre appareils avec Internet. L’icône sur l’écran d’accueil ouvre le même site; elle ne crée pas un nouveau compte et ne désactive pas la synchronisation. Sans Internet, les modifications restent sur cet appareil. Au retour de la connexion, l’app vérifie d’abord la version en ligne. Si un autre appareil a enregistré entre-temps, la version en ligne prévaut et remplace les changements locaux non synchronisés. L’option <strong>Rester connecté</strong> permet de retrouver votre session sur cet appareil.</p></section>
+    </div>
   </div>
 </div>
 
@@ -254,7 +269,7 @@ const LOW_THRESHOLD=3;
 
 function hapticTap(){ if('vibrate' in navigator){ try{ navigator.vibrate(10); }catch(e){} } }
 
-const DEFAULT_CARDS=()=>[{id:uid(),name:'My name',rides:0,color:CARD_COLORS[0],presets:[10,20,30],log:[]}];
+const DEFAULT_CARDS=()=>[{id:uid(),name:'Ma carte',rides:0,color:CARD_COLORS[0],presets:[10,20,30],log:[]}];
 function migrateLegacyDefaults(cards){
   const legacyNames=['Caro','Sieb','Chloé','Elise'];
   const isUntouchedDefaults=cards.length===4&&cards.every((c,i)=>c.name===legacyNames[i]&&c.rides===10&&c.color===CARD_COLORS[i]&&Array.isArray(c.presets)&&c.presets.join(',')==='10,20,30'&&Array.isArray(c.log)&&c.log.length===0);
@@ -299,10 +314,10 @@ function setSyncStatus(message){
  const offline=!navigator.onLine;
  const needsSync=offline||!cloudUser||/échec|impossible|attente|chargement/i.test(message||'');
  syncIndicator.classList.toggle('needs-sync',needsSync);
- syncIndicator.textContent=offline?'Hors ligne · modifications non synchronisées':(!cloudUser?'Local uniquement · non synchronisé':(message||'Connecté · synchronisation active'));
+ syncIndicator.textContent=offline?'Hors ligne · modifications non synchronisées':(!supabaseClient?'Synchronisation indisponible':(!cloudUser?'Connexion requise pour synchroniser':(message||'Connecté · synchronisation active')));
 }
 function updateAccountUi(){
- const localNote='Sans compte, les données restent uniquement dans ce navigateur et ne sont pas synchronisées. Fermer le navigateur ne les efface normalement pas. En revanche, effacer les données du site, utiliser la navigation privée ou changer de navigateur/appareil peut les faire perdre. Exportez une sauvegarde depuis le menu.';
+ const localNote='Connectez-vous pour synchroniser vos cartes entre appareils. Sans connexion, elles restent uniquement dans ce navigateur et ne sont pas synchronisées. Fermer le navigateur ne les efface normalement pas, mais effacer les données du site, utiliser la navigation privée ou changer de navigateur/appareil peut les faire perdre. Exportez une sauvegarde depuis le menu.';
  accountStatus.textContent=cloudUser?'Connecté : '+cloudUser.email+'. Les cartes se synchronisent avec votre compte lorsque vous êtes en ligne.':localNote;
  signInBtn.hidden=!!cloudUser;signOutBtn.hidden=!cloudUser;
  if(!supabaseClient)setSyncStatus('Supabase n’est pas configuré.');
@@ -468,6 +483,8 @@ const themeToggle=document.getElementById('themeToggle');
 const addCardBtn=document.getElementById('addCardBtn');
 const manageCardsBtn=document.getElementById('manageCardsBtn');
 const statsBtn=document.getElementById('statsBtn');
+const helpBtn=document.getElementById('helpBtn');
+const helpModal=document.getElementById('helpModal');
 const exportBtn=document.getElementById('exportBtn');
 const importBtn=document.getElementById('importBtn');
 const importFile=document.getElementById('importFile');
@@ -694,7 +711,7 @@ deleteCardBtn.addEventListener('click', ()=>{
 });
 
 function addCard(){
-  const card=ensureCardDefaults({id:uid(), name:'My name', rides:0}, state.cards.length);
+  const card=ensureCardDefaults({id:uid(), name:'Ma carte', rides:0}, state.cards.length);
   state.cards.push(card); saveState(); render();
   openEditModal(card.id);
 }
@@ -755,6 +772,7 @@ function renderStats(){
 statsBtn.addEventListener('click', ()=>{
  hideOverlay(menuOverlay);renderStats();showOverlay(statsModal);
 });
+helpBtn.addEventListener('click',()=>{hideOverlay(menuOverlay);showOverlay(helpModal);});
 
 exportBtn.addEventListener('click', ()=>{
   hideOverlay(menuOverlay);
@@ -794,7 +812,7 @@ importFile.addEventListener('change', (e)=>{
 
 resetCardsBtn.addEventListener('click', ()=>{
   hideOverlay(menuOverlay);
-  if(confirm('Revenir à une seule carte vide ? Les cartes actuelles seront remplacées.')){
+  if(confirm('Réinitialiser à une seule carte « Ma carte » avec 0 trajet ? Toutes les cartes et leur historique seront remplacés.')){
     state.cards=DEFAULT_CARDS(); saveState(); render();
   }
 });

@@ -278,14 +278,8 @@ const LOW_THRESHOLD=3;
 function hapticTap(){ if('vibrate' in navigator){ try{ navigator.vibrate(10); }catch(e){} } }
 
 const DEFAULT_CARDS=()=>[{id:uid(),name:'Ma carte',rides:0,color:CARD_COLORS[0],presets:[10,20,30],log:[]}];
-function migrateLegacyDefaults(cards){
-  const legacyNames=['Caro','Sieb','Chloé','Elise'];
-  const isUntouchedDefaults=cards.length===4&&cards.every((c,i)=>c.name===legacyNames[i]&&c.rides===10&&c.color===CARD_COLORS[i]&&Array.isArray(c.presets)&&c.presets.join(',')==='10,20,30'&&Array.isArray(c.log)&&c.log.length===0);
-  return isUntouchedDefaults?DEFAULT_CARDS():cards;
-}
-
 function ensureCardDefaults(card, idx){
-  if(!card.color) card.color = CARD_COLORS[idx % CARD_COLORS.length];
+  if(!CARD_COLORS.includes(card.color)) card.color = CARD_COLORS[idx % CARD_COLORS.length];
   if(!Array.isArray(card.presets) || card.presets.length<3) card.presets=[10,20,30];
   if(!Array.isArray(card.log)) card.log=[];
   if(typeof card.rides!=='number') card.rides=0;
@@ -298,7 +292,7 @@ function loadState(){
     if(raw){
       const p=JSON.parse(raw);
       if(p && Array.isArray(p.cards)){
-        p.cards = migrateLegacyDefaults(p.cards.map((c,i)=>ensureCardDefaults(c,i)));
+        p.cards = p.cards.map((c,i)=>ensureCardDefaults(c,i));
         if(!p.theme) p.theme='light';
         return p;
       }
@@ -354,7 +348,7 @@ function applyCloudSnapshot(snapshot,message){
  cloudRevision=snapshot.revision;
  cloudBaselineFingerprint=cardFingerprint(cards);
  isApplyingCloud=true;
- state.cards=migrateLegacyDefaults(cards);
+ state.cards=cards;
  if(!state.cards.length)state.cards=DEFAULT_CARDS();
  localStorage.setItem(STORAGE_KEY,JSON.stringify(state));
  render();
@@ -420,7 +414,7 @@ async function loadCardsFromCloud(user){
   cloudBaselineFingerprint=cardFingerprint(cloudCards);
   if(snapshot.rows.length){
    isApplyingCloud=true;
-   state.cards=migrateLegacyDefaults(cloudCards);
+   state.cards=cloudCards;
    localStorage.setItem(STORAGE_KEY,JSON.stringify(state));
    render();
    isApplyingCloud=false;
@@ -809,7 +803,7 @@ importFile.addEventListener('change', (e)=>{
       const parsed=JSON.parse(ev.target.result);
       if(parsed && Array.isArray(parsed.cards)){
         if(confirm('Remplacer toutes les données actuelles par cette sauvegarde ?')){
-          parsed.cards = migrateLegacyDefaults(parsed.cards.map((c,i)=>ensureCardDefaults(c,i))); if(!parsed.cards.length)parsed.cards=DEFAULT_CARDS();
+          parsed.cards = parsed.cards.map((c,i)=>ensureCardDefaults(c,i)); if(!parsed.cards.length)parsed.cards=DEFAULT_CARDS();
           state = parsed;
           saveState(); applyTheme(); render();
         }

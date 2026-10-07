@@ -257,7 +257,7 @@ function hapticTap(){ if('vibrate' in navigator){ try{ navigator.vibrate(10); }c
 const DEFAULT_CARDS=()=>[{id:uid(),name:'My name',rides:0,color:CARD_COLORS[0],presets:[10,20,30],log:[]}];
 function migrateLegacyDefaults(cards){
   const legacyNames=['Caro','Sieb','Chloé','Elise'];
-  const isUntouchedDefaults=cards.length===4&&cards.every((c,i)=>c.name===legacyNames[i]&&c.rides===10&&Array.isArray(c.log)&&c.log.length===0);
+  const isUntouchedDefaults=cards.length===4&&cards.every((c,i)=>c.name===legacyNames[i]&&c.rides===10&&c.color===CARD_COLORS[i]&&Array.isArray(c.presets)&&c.presets.join(',')==='10,20,30'&&Array.isArray(c.log)&&c.log.length===0);
   return isUntouchedDefaults?DEFAULT_CARDS():cards;
 }
 

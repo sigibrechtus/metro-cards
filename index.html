@@ -538,9 +538,22 @@ function applyTheme(){
   themeToggle.checked = state.theme==='dark';
 }
 
+function getUncorrectedRideEvents(card){
+  const remaining=[];
+  for(const event of card.log){
+    if(event.kind==='correction'&&event.delta>0){
+      for(let i=remaining.length-1;i>=0;i--){
+        if(remaining[i].ts<=event.ts){remaining.splice(i,1);break;}
+      }
+    }else if(event.delta<0&&event.kind!=='adjustment'){
+      remaining.push(event);
+    }
+  }
+  return remaining;
+}
 function getUsage(card, days){
-  const cutoff = Date.now() - days*86400000;
-  return card.log.filter(e=>e.ts>=cutoff && e.delta<0).reduce((s,e)=>s+Math.abs(e.delta),0);
+  const cutoff=Date.now()-days*86400000;
+  return getUncorrectedRideEvents(card).filter(e=>e.ts>=cutoff).reduce((total,e)=>total+Math.abs(e.delta),0);
 }
 
 function render(){
@@ -572,7 +585,7 @@ function buildCardEl(card){
     <div class="card-actions">
       <button data-action="minus" class="btn-minus">−</button>
       <button data-action="reload" class="btn-reload">⟳</button>
-      <button data-action="plus" class="btn-plus">+</button>
+      <button data-action="plus" class="btn-plus" title="Ajouter 1 ticket et corriger le dernier −1 si besoin" aria-label="Ajouter un ticket ou corriger le dernier retrait">+</button>
     </div>`;
   el.querySelector('[data-action="minus"]').addEventListener('click', e=>{e.stopPropagation(); changeRides(card.id,-1);});
   el.querySelector('[data-action="plus"]').addEventListener('click', e=>{e.stopPropagation(); changeRides(card.id,1);});
@@ -635,7 +648,7 @@ function changeRides(id, delta){
   card.rides=Math.max(0, Math.min(999, card.rides+delta));
   const actualDelta = card.rides - before;
   if(actualDelta!==0){
-    card.log.push({ts:Date.now(), delta:actualDelta});
+    card.log.push({ts:Date.now(), delta:actualDelta, kind:actualDelta>0?'correction':'ride'});
     if(card.log.length>500) card.log=card.log.slice(-500);
   }
   hapticTap();
@@ -665,7 +678,7 @@ confirmReloadBtn.addEventListener('click', ()=>{
   card.rides = replaceToggle.checked ? Math.max(0,val) : Math.max(0, card.rides+val);
   const actualDelta = card.rides-before;
   if(actualDelta!==0){
-    card.log.push({ts:Date.now(), delta:actualDelta});
+    card.log.push({ts:Date.now(), delta:actualDelta, kind:replaceToggle.checked?'adjustment':(actualDelta<0?'ride':'recharge')});
     if(card.log.length>500) card.log=card.log.slice(-500);
   }
   hapticTap();
@@ -770,7 +783,7 @@ function getDailyUsage(card,days=7){
  const buckets=[];
  for(let offset=days-1;offset>=0;offset--){const d=new Date(today);d.setDate(today.getDate()-offset);buckets.push({date:d,total:0});}
  const start=buckets[0].date.getTime();
- for(const event of card.log){if(event.delta>=0||event.ts<start)continue;const d=new Date(event.ts);d.setHours(0,0,0,0);const bucket=buckets.find(item=>item.date.getTime()===d.getTime());if(bucket)bucket.total+=Math.abs(event.delta);}
+ for(const event of getUncorrectedRideEvents(card)){if(event.ts<start)continue;const d=new Date(event.ts);d.setHours(0,0,0,0);const bucket=buckets.find(item=>item.date.getTime()===d.getTime());if(bucket)bucket.total+=Math.abs(event.delta);}
  return buckets;
 }
 function renderStats(){

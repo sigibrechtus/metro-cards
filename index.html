@@ -123,9 +123,10 @@
   .edit-card-modal .preset-row{flex-direction:column;width:100%}
   .edit-card-modal .modal-actions{flex-direction:column;align-items:stretch}
   .edit-card-modal .modal-actions button{width:100%;min-height:44px}
-  .color-row{ display:flex; gap:10px; flex-wrap:wrap; }
-  .color-swatch{ width:34px; height:34px; border-radius:50%; border:3px solid transparent; cursor:pointer; }
-  .color-swatch.selected{ border-color:var(--text); }
+  .color-row{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:10px;justify-items:center;width:100%;padding:4px 0}
+  .color-swatch{width:34px;height:34px;border-radius:50%;border:3px solid transparent;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.18);transition:transform .12s,box-shadow .12s}
+  .color-swatch:hover{transform:scale(1.08)}
+  .color-swatch.selected{border-color:var(--card-bg);box-shadow:0 0 0 2px var(--text),0 2px 6px rgba(0,0,0,.22)}
   .modal-actions{ display:flex; gap:10px; justify-content:flex-end; margin-top:6px; }
   .btn-primary{ background:var(--accent); color:#fff; border:none; padding:10px 18px; border-radius:10px; font-weight:700; }
   .btn-secondary{ background:transparent; border:1px solid var(--border); color:var(--text); padding:10px 18px; border-radius:10px; }
@@ -270,7 +271,8 @@ const authStorage={
 const supabaseClient=window.supabase?window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{auth:{storage:authStorage,persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}}):null;
 let cloudUser=null,cloudReady=false,saveTimer=null,isApplyingCloud=false,cloudRevision=0,cloudBaselineFingerprint='',saveInFlight=false,saveAgain=false,cloudPollTimer=null,cloudLoadingUserId=null;
 const uid=()=>'c'+Date.now()+Math.random().toString(36).slice(2,8);
-const CARD_COLORS=['#0077b6','#00b4a6','#f77f00','#7209b7','#2a9d8f','#e63946','#ffb703','#457b9d'];
+const CARD_COLORS=['#1D3557','#457B9D','#A8DADC','#2A9D8F','#6B705C','#B7B7A4','#E9C46A','#F4A261','#E76F51','#C44536','#9D4EDD','#6D597A','#D4A5A5','#F1E9DA'];
+const CARD_COLOR_NAMES=['Bleu Eiffel','Bleu Seine','Brume de Seine','Vert jardin','Vert Luxembourg','Pierre de Paris','Or de Versailles','Terrasse ensoleillée','Terracotta','Toit parisien','Lilas Montmartre','Mauve Opéra','Rose poudré','Crème café'];
 const LOW_THRESHOLD=3;
 
 function hapticTap(){ if('vibrate' in navigator){ try{ navigator.vibrate(10); }catch(e){} } }
@@ -675,10 +677,14 @@ cancelReloadBtn.addEventListener('click', ()=> hideOverlay(reloadModal));
 
 function renderColorSwatches(){
   colorRow.innerHTML='';
-  CARD_COLORS.forEach(color=>{
-    const sw=document.createElement('div');
+  CARD_COLORS.forEach((color,index)=>{
+    const sw=document.createElement('button');
+    sw.type='button';
     sw.className='color-swatch'+(color===editSelectedColor?' selected':'');
     sw.style.background=color;
+    sw.title=CARD_COLOR_NAMES[index];
+    sw.setAttribute('aria-label',CARD_COLOR_NAMES[index]);
+    sw.setAttribute('aria-pressed',String(color===editSelectedColor));
     sw.addEventListener('click', ()=>{ editSelectedColor=color; renderColorSwatches(); });
     colorRow.appendChild(sw);
   });

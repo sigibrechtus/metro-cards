@@ -1,0 +1,26 @@
+name: Temporary Commit Push Test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  test-push:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout default branch
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Create and push a test commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit --allow-empty -m "test: verify GitHub Actions commit permissions [skip ci]"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+          echo "Test commit successfully pushed to ${GITHUB_REF_NAME}."

@@ -1,0 +1,42 @@
+name: Repository Activity Maintenance
+
+on:
+  schedule:
+    # Weekly check; make a maintenance commit only after 30 days without commits.
+    - cron: '41 7 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: repository-activity-maintenance
+  cancel-in-progress: false
+
+jobs:
+  keep-repository-active:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout default branch
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+          fetch-depth: 1
+      - name: Check age of latest commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          last_commit="$(git log -1 --format=%ct)"
+          now="$(date -u +%s)"
+          age_days="$(( (now - last_commit) / 86400 ))"
+          echo "Latest commit age: ${age_days} days"
+          if (( age_days < 30 )); then
+            echo "Repository has recent activity; no commit necessary."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit --allow-empty -m "chore: maintain scheduled workflow activity [skip ci]"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+          echo "Maintenance commit pushed."

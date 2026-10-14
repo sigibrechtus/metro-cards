@@ -1,0 +1,35 @@
+name: Supabase Metro Cards Keepalive
+
+on:
+  schedule:
+    - cron: '17 6,12,18 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Query Metro Cards Supabase database
+        env:
+          SUPABASE_URL: https://shntwqeowkuvtdfwpvlh.supabase.co
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "$SUPABASE_PUBLISHABLE_KEY" ]; then
+            echo "::error::Configure the SUPABASE_PUBLISHABLE_KEY Actions repository secret."
+            exit 1
+          fi
+          status="$(curl --silent --show-error --retry 2 --retry-delay 5 --max-time 25 --output /tmp/supabase-response --write-out '%{http_code}' \
+            --header "apikey: $SUPABASE_PUBLISHABLE_KEY" \
+            --header "Accept: application/json" \
+            "$SUPABASE_URL/rest/v1/metro_cards?select=id&limit=1")"
+          echo "Supabase API HTTP status: $status"
+          if [ "$status" != "200" ]; then
+            echo "::error::Supabase query failed with HTTP $status"
+            exit 1
+          fi
+          echo "Metro Cards database query succeeded."
